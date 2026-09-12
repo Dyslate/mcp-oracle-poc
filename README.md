@@ -251,7 +251,7 @@ Or via `.mcp.json` at the project root:
 List the tables of the current schema, or of a given schema.
 
 ```jsonc
-{ "owner": "HR" }   // optional; defaults to the current user
+{ "owner": "SYSTEM" }   // optional; defaults to the current user
 ```
 
 ### `describe_table`
@@ -259,7 +259,7 @@ List the tables of the current schema, or of a given schema.
 Describe a table's columns (name, type, nullability).
 
 ```jsonc
-{ "table_name": "EMPLOYEES", "owner": "HR" }  // owner optional
+{ "table_name": "DEMO_CLIENTS" }   // owner optional (defaults to current user)
 ```
 
 ### `execute_query`
@@ -269,8 +269,8 @@ row cap.
 
 ```jsonc
 {
-  "sql": "SELECT * FROM employees WHERE department_id = :dep",
-  "binds": { "dep": 10 },
+  "sql": "SELECT * FROM demo_clients WHERE city = :city",
+  "binds": { "city": "Paris" },
   "max_rows": 50
 }
 ```
@@ -284,11 +284,11 @@ Run `INSERT` / `UPDATE` / `DELETE` with a **two-step confirmation**:
 - `confirm: true` → real execution with `COMMIT`.
 
 ```jsonc
-// 1) simulate
-{ "sql": "UPDATE employees SET salary = salary * 1.1 WHERE department_id = :d", "binds": { "d": 10 } }
+// 1) simulate (dry-run: nothing is modified)
+{ "sql": "INSERT INTO demo_clients (id, name, city) VALUES (:id, :name, :city)", "binds": { "id": 4, "name": "Joel", "city": "Marseille" } }
 
 // 2) execute for real (after user validation)
-{ "sql": "UPDATE employees SET salary = salary * 1.1 WHERE department_id = :d", "binds": { "d": 10 }, "confirm": true }
+{ "sql": "INSERT INTO demo_clients (id, name, city) VALUES (:id, :name, :city)", "binds": { "id": 4, "name": "Joel", "city": "Marseille" }, "confirm": true }
 ```
 
 ## Security
