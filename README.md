@@ -1,69 +1,67 @@
 # MCP Oracle POC (Python)
 
-Serveur **MCP (Model Context Protocol)** en **Python**, bâti avec la
-bibliothèque **[FastMCP](https://github.com/jlowin/fastmcp)** (v2), qui expose à
-Claude des outils pour interagir avec une base de données **Oracle** : lister
-les tables, décrire une table, exécuter des `SELECT` en lecture seule, et
-effectuer des écritures `INSERT`/`UPDATE`/`DELETE` avec un mécanisme de
-confirmation.
+A **MCP (Model Context Protocol)** server in **Python**, built with the
+**[FastMCP](https://github.com/jlowin/fastmcp)** (v2) library, exposing tools for
+Claude to interact with an **Oracle** database: list tables, describe a table,
+run read-only `SELECT` queries, and perform `INSERT`/`UPDATE`/`DELETE` writes
+with a two-step confirmation.
 
-> POC pédagogique : conçu pour être testé rapidement, avec des garde-fous de
-> sécurité raisonnables. À durcir avant tout usage en production.
+> Educational POC: built to be tested quickly, with reasonable safety
+> guardrails. Harden it before any production use.
 
-## Démonstration
+## Demo
 
-Le serveur MCP connecté à **Claude Desktop**, répondant à des questions en
-langage naturel sur une vraie base **Oracle** — de bout en bout.
+The MCP server connected to **Claude Desktop**, answering natural-language
+questions against a live **Oracle** database — end to end.
 
-**1. Le serveur `oracle` chargé dans Claude Desktop** (Paramètres → Développeur →
-Local MCP servers) :
+**1. The `oracle` server loaded in Claude Desktop** (Settings → Developer →
+Local MCP servers):
 
-![Serveur MCP oracle dans Claude Desktop](image/developer_settings_claude.png)
+![Oracle MCP server in Claude Desktop](image/developer_settings_claude.png)
 
-**2. Interroger la base en langage naturel** — Claude appelle l'outil
-`execute_query` sous le capot :
+**2. Querying the database in natural language** — Claude calls the
+`execute_query` tool under the hood:
 
-![Exemple de requête via Claude](image/example_of_query.png)
+![Example query via Claude](image/example_of_query.png)
 
-**3. « Qui habite à Paris ? »** — Claude traduit la question en
-`SELECT name FROM demo_clients WHERE city = :ville` (avec une *bind variable*,
-donc protégé contre l'injection SQL), l'exécute et répond :
+**3. "Who lives in Paris?"** — Claude turns the question into
+`SELECT name FROM demo_clients WHERE city = :city` (using a *bind variable*, so
+it is protected against SQL injection), runs it, and answers:
 
-![Qui habite à Paris](image/exemple_of_who_lives_in_paris.png)
+![Who lives in Paris](image/exemple_of_who_lives_in_paris.png)
 
 ---
 
-## Sommaire
+## Table of contents
 
-- [Démonstration](#démonstration)
-- [Fonctionnalités](#fonctionnalités)
+- [Demo](#demo)
+- [Features](#features)
 - [Architecture](#architecture)
-- [Prérequis](#prérequis)
+- [Requirements](#requirements)
 - [Installation](#installation)
-- [Configuration Oracle](#configuration-oracle)
-- [Lancer une base Oracle de test](#lancer-une-base-oracle-de-test)
-- [Exécution](#exécution)
-- [Tester rapidement](#tester-rapidement)
-- [Configurer Claude Desktop](#configurer-claude-desktop)
-- [Configurer Claude Code](#configurer-claude-code)
-- [Outils exposés](#outils-exposés)
-- [Sécurité](#sécurité)
-- [Dépannage](#dépannage)
+- [Oracle configuration](#oracle-configuration)
+- [Spinning up a test database](#spinning-up-a-test-database)
+- [Running](#running)
+- [Quick testing](#quick-testing)
+- [Configuring Claude Desktop](#configuring-claude-desktop)
+- [Configuring Claude Code](#configuring-claude-code)
+- [Exposed tools](#exposed-tools)
+- [Security](#security)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
-## Fonctionnalités
+## Features
 
-- **4 outils MCP** : `list_tables`, `describe_table`, `execute_query`, `execute_dml`.
-- **Framework `FastMCP` (v2)** : outils déclarés par décorateur `@mcp.tool()`,
-  schéma d'entrée inféré depuis les annotations de type + `pydantic.Field`.
-- **Pool de connexions** `python-oracledb` (emprunt/restitution via context manager).
-- **Mode Thin par défaut** : aucun client Oracle natif à installer.
-- **Garde-fous de sécurité** : lecture seule stricte pour les requêtes,
-  confirmation en deux temps pour les écritures, blocage du DDL, plafonnement
-  du nombre de lignes, bind variables.
-- **Logging clair** sur `stderr` (sans polluer le canal MCP stdout).
-- **Configuration via `.env`**, typée et validée au démarrage (fail-fast).
+- **4 MCP tools**: `list_tables`, `describe_table`, `execute_query`, `execute_dml`.
+- **FastMCP (v2)**: tools declared with the `@mcp.tool()` decorator; input schema
+  inferred from type hints + `pydantic.Field`.
+- **Connection pool** via `python-oracledb` (borrow/return through a context manager).
+- **Thin mode by default**: no native Oracle client required.
+- **Safety guardrails**: strict read-only for queries, two-step confirmation for
+  writes, DDL blocking, row-count cap, bind variables.
+- **Clear logging** on `stderr` (never pollutes the MCP stdout channel).
+- **Configuration via `.env`**, typed and validated at startup (fail-fast).
 
 ## Architecture
 
@@ -72,90 +70,90 @@ POC_MCP_ORACLE/
 ├── src/mcp_oracle_poc/
 │   ├── __init__.py
 │   ├── __main__.py            # `python -m mcp_oracle_poc`
-│   ├── server.py             # Point d'entrée : démarre le serveur MCP (stdio)
-│   ├── config.py             # Chargement + validation des variables d'env
-│   ├── logging_config.py     # Logger (stderr uniquement)
-│   ├── oracle.py             # Pool de connexions + helpers de sécurité SQL
+│   ├── server.py             # Entry point: starts the MCP server (stdio)
+│   ├── config.py             # Load + validate environment variables
+│   ├── logging_config.py     # Logger (stderr only)
+│   ├── oracle.py             # Connection pool + SQL safety helpers
 │   └── tools/
-│       ├── __init__.py       # Enregistre tous les outils
-│       ├── common.py         # Helpers (conversion lignes, JSON, LOB)
-│       ├── list_tables.py    # Outil list_tables
-│       ├── describe_table.py # Outil describe_table
-│       ├── execute_query.py  # Outil execute_query (SELECT)
-│       └── execute_dml.py    # Outil execute_dml (INSERT/UPDATE/DELETE)
-├── demo_setup.py             # Crée une petite table de démo (demo_clients)
-├── show_tables.py            # Affiche les tables + demo_clients dans le terminal
-├── test_connexion.py         # Test rapide de connexion Oracle
-├── test_mcp.py               # Test des outils via un client MCP en mémoire
-├── test_dml.py               # Démo du dry-run/COMMIT sur execute_dml
-├── image/                    # Captures d'écran de la démo
+│       ├── __init__.py       # Registers all tools
+│       ├── common.py         # Helpers (row conversion, JSON, LOB)
+│       ├── list_tables.py    # list_tables tool
+│       ├── describe_table.py # describe_table tool
+│       ├── execute_query.py  # execute_query tool (SELECT)
+│       └── execute_dml.py    # execute_dml tool (INSERT/UPDATE/DELETE)
+├── demo_setup.py             # Create a small demo table (demo_clients)
+├── show_tables.py            # Print the tables + demo_clients in the terminal
+├── test_connexion.py         # Quick Oracle connectivity test
+├── test_mcp.py               # Test the tools via an in-memory MCP client
+├── test_dml.py               # Dry-run / COMMIT demo of execute_dml
+├── image/                    # Demo screenshots
 ├── pyproject.toml
 ├── requirements.txt
 ├── .env.example
 └── README.md
 ```
 
-## Prérequis
+## Requirements
 
 - **Python ≥ 3.10**
-- Une base **Oracle** accessible (installée localement, via Docker, ou distante).
-- `python-oracledb` fonctionne en **mode Thin** sans Instant Client. Le mode
-  Thick (client natif) n'est nécessaire que pour des fonctionnalités avancées.
+- An accessible **Oracle** database (installed locally, via Docker, or remote).
+- `python-oracledb` runs in **Thin mode** with no Instant Client. Thick mode is
+  only needed for advanced features.
 
 ## Installation
 
 ```bash
-# 1. (Recommandé) Créer un environnement virtuel
+# 1. (Recommended) Create a virtual environment
 python -m venv .venv
-source .venv/bin/activate          # Windows : .venv\Scripts\activate
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 
-# 2. Installer le projet dans CET environnement
+# 2. Install the project into THIS environment
 pip install -e .
 
-# 3. Créer votre fichier de configuration
-cp .env.example .env               # Windows : copy .env.example .env
-# puis éditez .env avec vos identifiants Oracle
+# 3. Create your configuration file
+cp .env.example .env               # Windows: copy .env.example .env
+# then edit .env with your Oracle credentials
 ```
 
-> **Important :** installez le projet dans le **même** interpréteur Python que
-> celui que le client MCP lancera. Si vous créez un venv, faites `pip install -e .`
-> dedans (ex. sous Windows : `.venv\Scripts\python.exe -m pip install -e .`).
-> Sinon vous obtiendrez `No module named mcp_oracle_poc`.
+> **Important:** install the project into the **same** Python interpreter the MCP
+> client will launch. If you create a virtualenv, run `pip install -e .` inside
+> it (e.g. on Windows: `.venv\Scripts\python.exe -m pip install -e .`). Otherwise
+> you will get `No module named mcp_oracle_poc`.
 
-## Configuration Oracle
+## Oracle configuration
 
-Renseignez ces variables dans `.env` (voir `.env.example`) :
+Set these variables in `.env` (see `.env.example`):
 
-| Variable                   | Obligatoire | Description                                                        |
-| -------------------------- | :---------: | ----------------------------------------------------------------- |
-| `ORACLE_USER`              |     oui     | Utilisateur Oracle.                                               |
-| `ORACLE_PASSWORD`          |     oui     | Mot de passe.                                                     |
-| `ORACLE_CONNECTION_STRING` |     oui     | Easy Connect `host:port/service` ou alias tnsnames.              |
-| `ORACLE_POOL_MIN`          |     non     | Connexions minimales du pool (défaut `0`).                       |
-| `ORACLE_POOL_MAX`          |     non     | Connexions maximales du pool (défaut `4`).                       |
-| `QUERY_MAX_ROWS`           |     non     | Plafond de lignes pour `execute_query` (défaut `100`).           |
-| `ALLOW_DML`                |     non     | `false` pour un serveur strictement en lecture seule (défaut `true`). |
-| `ORACLE_CLIENT_LIB_DIR`    |     non     | Chemin Instant Client pour activer le mode Thick.                |
-| `LOG_LEVEL`                |     non     | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` (défaut `INFO`).        |
+| Variable                   | Required | Description                                                    |
+| -------------------------- | :------: | -------------------------------------------------------------- |
+| `ORACLE_USER`              |   yes    | Oracle user.                                                   |
+| `ORACLE_PASSWORD`          |   yes    | Password.                                                      |
+| `ORACLE_CONNECTION_STRING` |   yes    | Easy Connect `host:port/service` or a tnsnames alias.          |
+| `ORACLE_POOL_MIN`          |    no    | Minimum pool connections (default `0`).                        |
+| `ORACLE_POOL_MAX`          |    no    | Maximum pool connections (default `4`).                        |
+| `QUERY_MAX_ROWS`           |    no    | Row cap for `execute_query` (default `100`).                   |
+| `ALLOW_DML`                |    no    | `false` for a strictly read-only server (default `true`).      |
+| `ORACLE_CLIENT_LIB_DIR`    |    no    | Instant Client path to enable Thick mode.                      |
+| `LOG_LEVEL`                |    no    | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` (default `INFO`).     |
 
-**Exemple de `ORACLE_CONNECTION_STRING`** (Easy Connect) : `localhost:1521/FREEPDB1`
+**Example `ORACLE_CONNECTION_STRING`** (Easy Connect): `localhost:1521/FREEPDB1`
 
-## Lancer une base Oracle de test
+## Spinning up a test database
 
-Deux options simples pour une base locale :
+Two easy options for a local database:
 
-**Installeur natif (Windows/Linux)** — téléchargez **Oracle Database Free** sur
-<https://www.oracle.com/database/free/>. L'installeur crée automatiquement une
-base prête à l'emploi (service `FREEPDB1`) ; renseignez le mot de passe que vous
-avez choisi pendant l'installation.
+**Native installer (Windows/Linux)** — download **Oracle Database Free** from
+<https://www.oracle.com/database/free/>. The installer automatically creates a
+ready-to-use database (service `FREEPDB1`); use the password you set during
+installation.
 
-**Docker** — image communautaire, sans compte Oracle :
+**Docker** — community image, no Oracle account required:
 
 ```bash
 docker run -d --name oracle-free -p 1521:1521 -e ORACLE_PASSWORD=change_me gvenzl/oracle-free
 ```
 
-Puis dans `.env` :
+Then in `.env`:
 
 ```
 ORACLE_USER=system
@@ -163,39 +161,39 @@ ORACLE_PASSWORD=change_me
 ORACLE_CONNECTION_STRING=localhost:1521/FREEPDB1
 ```
 
-## Exécution
+## Running
 
 ```bash
 python -m mcp_oracle_poc
-# ou, si installé en package :
+# or, if installed as a package:
 mcp-oracle-poc
 ```
 
-Le serveur écrit ses logs sur **stderr** et parle MCP sur **stdout** ; c'est
-normal qu'il « attende » : il est piloté par un client MCP.
+The server logs to **stderr** and speaks MCP over **stdout**; it is normal for it
+to "just wait" — it is driven by an MCP client.
 
-## Tester rapidement
+## Quick testing
 
-Plusieurs scripts utilitaires sont fournis (venv actif, `.env` renseigné) :
+Several helper scripts are provided (virtualenv active, `.env` filled in):
 
 ```bash
-python demo_setup.py       # crée une table de démo demo_clients (3 lignes)
-python show_tables.py      # affiche les tables + le contenu de demo_clients
-python test_connexion.py   # vérifie la connexion Oracle
-python test_mcp.py         # appelle les outils via un client MCP en mémoire
-python test_dml.py         # montre la simulation (dry-run) puis le COMMIT réel
+python demo_setup.py       # create a demo table demo_clients (3 rows)
+python show_tables.py      # print the tables + the content of demo_clients
+python test_connexion.py   # check the Oracle connection
+python test_mcp.py         # call the tools via an in-memory MCP client
+python test_dml.py         # show the dry-run simulation then the real COMMIT
 ```
 
-Vous pouvez aussi lancer le **MCP Inspector** via FastMCP (nécessite Node.js) :
+You can also launch the **MCP Inspector** via FastMCP (requires Node.js):
 
 ```bash
 fastmcp dev src/mcp_oracle_poc/server.py
 ```
 
-## Configurer Claude Desktop
+## Configuring Claude Desktop
 
-Ouvrez **Paramètres → Développeur → Edit config** et ajoutez le serveur `oracle`
-(utilisez des **chemins absolus**, et le Python de votre venv) :
+Open **Settings → Developer → Edit config** and add the `oracle` server (use
+**absolute paths**, and the Python from your virtualenv):
 
 ```json
 {
@@ -215,21 +213,20 @@ Ouvrez **Paramètres → Développeur → Edit config** et ajoutez le serveur `o
 }
 ```
 
-Sous Windows, les chemins prennent des **doubles antislashs** `\\`. Quittez
-complètement Claude Desktop puis rouvrez-le : le serveur `oracle` apparaît sous
-**Paramètres → Développeur → Local MCP servers**. Demandez alors :
-*« Liste les tables de ma base Oracle »*.
+On Windows, paths use **double backslashes** `\\`. Fully quit and reopen Claude
+Desktop: the `oracle` server appears under **Settings → Developer → Local MCP
+servers**. Then ask: *"List the tables in my Oracle database."*
 
-> Les serveurs MCP **locaux** (stdio) se configurent via ce fichier — **pas**
-> via « Add custom connector », qui est réservé aux serveurs distants en HTTPS.
+> **Local** (stdio) MCP servers are configured through this config file — **not**
+> through "Add custom connector", which is for remote HTTPS servers.
 
-## Configurer Claude Code
+## Configuring Claude Code
 
 ```bash
 claude mcp add oracle -- python -m mcp_oracle_poc
 ```
 
-Ou via `.mcp.json` à la racine du projet :
+Or via `.mcp.json` at the project root:
 
 ```json
 {
@@ -242,28 +239,28 @@ Ou via `.mcp.json` à la racine du projet :
 }
 ```
 
-## Outils exposés
+## Exposed tools
 
 ### `list_tables`
 
-Liste les tables du schéma courant, ou d'un schéma donné.
+List the tables of the current schema, or of a given schema.
 
 ```jsonc
-{ "owner": "HR" }   // optionnel ; par défaut = utilisateur courant
+{ "owner": "HR" }   // optional; defaults to the current user
 ```
 
 ### `describe_table`
 
-Décrit les colonnes d'une table (nom, type, nullabilité).
+Describe a table's columns (name, type, nullability).
 
 ```jsonc
-{ "table_name": "EMPLOYEES", "owner": "HR" }  // owner optionnel
+{ "table_name": "EMPLOYEES", "owner": "HR" }  // owner optional
 ```
 
 ### `execute_query`
 
-Exécute un `SELECT` (ou `WITH ... SELECT`) en **lecture seule**, avec bind
-variables et plafonnement du nombre de lignes.
+Run a **read-only** `SELECT` (or `WITH ... SELECT`), with bind variables and a
+row cap.
 
 ```jsonc
 {
@@ -275,61 +272,60 @@ variables et plafonnement du nombre de lignes.
 
 ### `execute_dml`
 
-Exécute `INSERT` / `UPDATE` / `DELETE` avec **confirmation en deux temps** :
+Run `INSERT` / `UPDATE` / `DELETE` with a **two-step confirmation**:
 
-- `confirm` absent ou `false` → **simulation** (dry-run) : indique le nombre de
-  lignes qui seraient impactées, puis `ROLLBACK` (rien n'est modifié).
-- `confirm: true` → exécution réelle avec `COMMIT`.
+- `confirm` absent or `false` → **simulation** (dry-run): reports how many rows
+  would be affected, then `ROLLBACK` (nothing is modified).
+- `confirm: true` → real execution with `COMMIT`.
 
 ```jsonc
-// 1) simulation
+// 1) simulate
 { "sql": "UPDATE employees SET salary = salary * 1.1 WHERE department_id = :d", "binds": { "d": 10 } }
 
-// 2) exécution réelle (après validation de l'utilisateur)
+// 2) execute for real (after user validation)
 { "sql": "UPDATE employees SET salary = salary * 1.1 WHERE department_id = :d", "binds": { "d": 10 }, "confirm": true }
 ```
 
-## Sécurité
+## Security
 
-Ce POC applique plusieurs garde-fous :
+This POC applies several guardrails:
 
-- **Séparation lecture / écriture** : `execute_query` refuse tout ce qui n'est
-  pas `SELECT`/`WITH` ; `execute_dml` n'accepte que `INSERT`/`UPDATE`/`DELETE`.
-- **Interdiction du DDL et du PL/SQL** : `DROP`, `TRUNCATE`, `ALTER`, `CREATE`,
-  `GRANT`, `MERGE`, `BEGIN`, `EXECUTE`, etc. sont bloqués partout.
-- **Anti "stacked queries"** : une seule instruction par appel.
-- **Confirmation des écritures** : dry-run + `ROLLBACK` par défaut, `COMMIT`
-  seulement sur `confirm: true`.
-- **Avertissement `WHERE` manquant** sur `UPDATE`/`DELETE`.
-- **Plafond de lignes** (`QUERY_MAX_ROWS`) pour éviter les dumps.
-- **Bind variables** pour prévenir l'injection SQL.
-- **Kill switch** : `ALLOW_DML=false` rend le serveur strictement en lecture seule.
+- **Read/write separation**: `execute_query` rejects anything that is not
+  `SELECT`/`WITH`; `execute_dml` only accepts `INSERT`/`UPDATE`/`DELETE`.
+- **DDL and PL/SQL blocking**: `DROP`, `TRUNCATE`, `ALTER`, `CREATE`, `GRANT`,
+  `MERGE`, `BEGIN`, `EXECUTE`, etc. are blocked everywhere.
+- **Anti "stacked queries"**: a single statement per call.
+- **Write confirmation**: dry-run + `ROLLBACK` by default, `COMMIT` only on
+  `confirm: true`.
+- **Missing-`WHERE` warning** on `UPDATE`/`DELETE`.
+- **Row cap** (`QUERY_MAX_ROWS`) to avoid dumps.
+- **Bind variables** to prevent SQL injection.
+- **Kill switch**: `ALLOW_DML=false` makes the server strictly read-only.
 
-**Pour aller plus loin** : créer un utilisateur Oracle dédié avec des privilèges
-minimaux (idéalement lecture seule) plutôt que `system`, activer l'audit Oracle,
-et restreindre le réseau. Les garde-fous applicatifs ne remplacent pas des
-privilèges base de données bien configurés.
+**Going further:** create a dedicated Oracle user with least privileges (ideally
+read-only) instead of `system`, enable Oracle auditing, and restrict the network.
+Application-level guardrails do not replace properly configured database
+privileges.
 
-## Dépannage
+## Troubleshooting
 
-- **`ORA-01017` (identifiants invalides)** : vérifiez `ORACLE_USER` /
-  `ORACLE_PASSWORD`.
-- **`ORA-12514` (service inconnu)** : vérifiez le service dans
-  `ORACLE_CONNECTION_STRING` (ex. `FREEPDB1`).
-- **`DPY-6005` / connexion refusée (`WinError 10061`)** : rien n'écoute sur
-  l'hôte/port indiqué. Vérifiez l'adresse d'écoute du listener
-  (`netstat -ano | findstr 1521`) : s'il n'écoute que sur l'IP LAN de la machine
-  (ex. `192.168.1.20`), mettez **cette IP** dans `ORACLE_CONNECTION_STRING` au
-  lieu de `localhost`.
-- **`No module named mcp_oracle_poc`** : le paquet n'est pas installé dans le
-  Python lancé — faites `pip install -e .` dans **ce** même environnement (venv).
-- **Claude Desktop affiche « Server disconnected »** : en général un plantage au
-  démarrage (voir les points ci-dessus) ou une pollution de stdout — ce projet
-  démarre FastMCP avec `show_banner=False` pour garder le canal stdio propre.
-- **Le serveur « ne fait rien »** : c'est normal, il attend un client MCP.
+- **`ORA-01017` (invalid credentials)**: check `ORACLE_USER` / `ORACLE_PASSWORD`.
+- **`ORA-12514` (unknown service)**: check the service in
+  `ORACLE_CONNECTION_STRING` (e.g. `FREEPDB1`).
+- **`DPY-6005` / connection refused (`WinError 10061`)**: nothing is listening on
+  the given host/port. Check the listener address
+  (`netstat -ano | findstr 1521`): if it only listens on the machine's LAN IP
+  (e.g. `192.168.1.20`), use **that IP** in `ORACLE_CONNECTION_STRING` instead of
+  `localhost`.
+- **`No module named mcp_oracle_poc`**: the package is not installed in the Python
+  being launched — run `pip install -e .` in **that** same environment (venv).
+- **Claude Desktop shows "Server disconnected"**: usually a crash at startup (see
+  the points above) or stdout pollution — this project starts FastMCP with
+  `show_banner=False` to keep the stdio channel clean.
+- **The server "does nothing"**: that is expected — it waits for an MCP client.
 
 ---
 
-## Licence
+## License
 
-MIT — POC fourni à titre d'exemple.
+MIT — provided as an example POC.
