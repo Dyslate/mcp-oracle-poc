@@ -30,6 +30,11 @@ it is protected against SQL injection), runs it, and answers:
 
 ![Who lives in Paris](image/exemple_of_who_lives_in_paris.png)
 
+**4. The database seen directly in the terminal** — `python show_tables.py`
+prints the tables and the `demo_clients` rows straight from Oracle (PowerShell):
+
+![Tables shown in PowerShell](image/show_table_powershell.png)
+
 ---
 
 ## Table of contents
