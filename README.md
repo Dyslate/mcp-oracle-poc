@@ -35,6 +35,14 @@ prints the tables and the `demo_clients` rows straight from Oracle (PowerShell):
 
 ![Tables shown in PowerShell](image/show_table_powershell.png)
 
+**5. Adding data safely** — writes go through `execute_dml`, which only commits
+after an explicit confirmation. Here Claude adds new clients (Joel, then
+Geoffrey) living in Luxembourg:
+
+![Adding Joel via execute_dml](image/add_joel.png)
+
+![Adding Geoffrey via execute_dml](image/add_geoffrey.png)
+
 ---
 
 ## Table of contents
